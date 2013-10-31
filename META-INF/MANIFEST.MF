@@ -1,0 +1,11 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: SmartTab
+Bundle-SymbolicName: org.rileyberton.eclipse.smart_tab;singleton:=true
+Bundle-Version: 1.0.0
+Bundle-Vendor: rileyberton
+Require-Bundle: org.eclipse.ui,
+ org.eclipse.ui.workbench.texteditor
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Import-Package: org.eclipse.jface.text
+Bundle-ActivationPolicy: lazy
