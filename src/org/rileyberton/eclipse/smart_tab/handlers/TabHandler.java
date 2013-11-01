@@ -1,6 +1,9 @@
 package org.rileyberton.eclipse.smart_tab.handlers;
 
+import java.lang.reflect.Field;
+
 import org.eclipse.core.commands.AbstractHandler;
+import org.eclipse.core.commands.Command;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.NotEnabledException;
@@ -10,10 +13,14 @@ import org.eclipse.swt.widgets.Event;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
+import org.eclipse.ui.commands.ICommandService;
 import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.handlers.IHandlerService;
 import org.eclipse.ui.texteditor.IDocumentProvider;
 import org.eclipse.ui.texteditor.ITextEditor;
+import org.eclipse.ui.texteditor.ITextEditorActionConstants;
+import org.eclipse.ui.texteditor.ITextEditorActionDefinitionIds;
+import org.eclipse.jface.action.IAction;
 //import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
@@ -27,17 +34,60 @@ import org.eclipse.jface.viewers.ISelectionProvider;
  * @see org.eclipse.core.commands.AbstractHandler
  */
 public class TabHandler extends AbstractHandler {
+	
+	private boolean hippieExpandFixed = false;
 	/**
 	 * The constructor.
 	 */
 	public TabHandler() {
 	}
-
 	
-	private void executeCommand(IWorkbenchWindow win, final String cmdName) {
-    	IHandlerService handlerService = (IHandlerService) win.getService(IHandlerService.class);
+	private IAction getHippieCompleteAction(ITextEditor editor) {
+		IAction action = editor.getAction(ITextEditorActionConstants.HIPPIE_COMPLETION);
+		return action;
+	}
+	
+	/* this is extreme hackery, thank you java */
+	private void fixHippieCompletionCommandId(IAction action) {
+		if (hippieExpandFixed) {
+			return;
+		}
+		try {
+			Field f = action.getClass().getDeclaredField("fExitStrategy");
+			f.setAccessible(true);
+			
+			Object exitStrat = f.get(action);
+			
+			Field commands = exitStrat.getClass().getDeclaredField("fCommandIds");
+			commands.setAccessible(true);
+			
+			commands.set(exitStrat, new String[] {"org.rileyberton.eclipse.smart_tab.command"});
+			hippieExpandFixed = true;
+		} catch (SecurityException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (NoSuchFieldException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IllegalArgumentException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IllegalAccessException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	private Command getCommand(IEditorPart editor, final String cmdName) {
+    	ICommandService commandService = (ICommandService) editor.getSite().getService(ICommandService.class);
+   		return commandService.getCommand(cmdName);
+	}
+
+	private void executeCommand(IEditorPart win, final String cmdName) {
+    	ICommandService commandService = (ICommandService) win.getSite().getService(ICommandService.class);
     	try {
-		   handlerService.executeCommand(cmdName, new Event());
+    		Command command = commandService.getCommand(cmdName);
+    		command.executeWithChecks(new ExecutionEvent());
     	} catch (NotDefinedException e) {
     		// TODO Auto-generated catch block
     		e.printStackTrace();
@@ -73,7 +123,7 @@ public class TabHandler extends AbstractHandler {
                 String selectionText = textSelection.getText();
                 if (selectionText.trim().length() > 0) {
                 	/* call the indent command */
-                	executeCommand(win, "org.eclipse.ui.edit.text.shiftRight");
+                	executeCommand(editor, "org.eclipse.ui.edit.text.shiftRight");
                 } else {
                 
 	                String textBehindCursor = null;
@@ -95,10 +145,12 @@ public class TabHandler extends AbstractHandler {
 						}
 	                } else if (textBehindCursor.equals(".") || textBehindCursor.equals(">") || textBehindCursor.equals(":")) {
 	                	/* case where there is a separator, invoke the auto completion */
-	                	executeCommand(win, "org.eclipse.ui.edit.text.contentAssist.proposals");
+	                	executeCommand(editor, "org.eclipse.ui.edit.text.contentAssist.proposals");
 	                } else {
 	                	/* case where there is any other character, invoke word completion */
-	                	executeCommand(win, "org.eclipse.ui.edit.text.hippieCompletion");
+	                	IAction a = getHippieCompleteAction((ITextEditor)editor);
+	                	fixHippieCompletionCommandId(a);
+	                	a.run();
 	                }
 	                
                 }
